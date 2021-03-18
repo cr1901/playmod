@@ -1,0 +1,14 @@
+[package]
+name = "playmod"
+version = "0.1.0"
+authors = ["William D. Jones <thor0505@comcast.net>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+cpal = "0.13.2"
+eyre = "0.6.5"
+
+[dependencies.modfile]
+git = "https://github.com/hypp/modfile"
