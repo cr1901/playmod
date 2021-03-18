@@ -25,7 +25,7 @@ where
     let mut sample_clock = 0f32;
     let mut next_value = move || {
         sample_clock = (sample_clock + 1.0) % sample_rate;
-        (sample_clock * 440.0 * 2.0 * std::f32::consts::PI / sample_rate).sin()
+        (1024.0*((sample_clock * 440.0 * 2.0 * std::f32::consts::PI / sample_rate).sin())) as i16
     };
 
     let err_fn = |err| eprintln!("an error occurred on stream: {}", err);
@@ -44,12 +44,12 @@ where
     Ok(())
 }
 
-fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> f32)
+fn write_data<T>(output: &mut [T], channels: usize, next_sample: &mut dyn FnMut() -> i16)
 where
     T: cpal::Sample,
 {
     for frame in output.chunks_mut(channels) {
-        let value: T = cpal::Sample::from::<f32>(&next_sample());
+        let value: T = cpal::Sample::from::<i16>(&next_sample());
         for sample in frame.iter_mut() {
             *sample = value;
         }
