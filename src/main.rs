@@ -42,6 +42,7 @@ impl ChannelBuffer {
         // // println!("Update {:?}", channel);
         if channel.period != 0 {
             self.curr_period = Some(channel.period);
+            self.curr_offset = 0;
         } else {
             self.curr_period = None;
         }
@@ -69,7 +70,7 @@ impl ChannelBuffer {
         let s_data = &sinfo[(self.sample() - 1) as usize].data;
         let samples_this_tick = self.samples_this_tick();
 
-        // println!("{}, {}, {}", self.curr_offset, s_len, self.sample());
+        println!("{}, {}, {}", self.curr_offset, s_len, self.sample());
         if self.curr_offset + samples_this_tick >= s_len {
             
             let (rest, start) = s_data.split_at(self.curr_offset as usize);
@@ -166,12 +167,12 @@ fn main() -> eyre::Result<()> {
             let mut tick = 0;
 
             while tick < speed {
-                for (cbuf, chan) in channel_bufs.iter_mut().zip(row.channels.iter()).take(1) {
+                for (cbuf, chan) in channel_bufs.iter_mut().zip(row.channels.iter()) {
                     cbuf.update(chan, &module.sample_info);
 
                     'outer: loop {
                         let mut deque = BUFFER.lock().unwrap();
-                        if deque.len() > 100 {
+                        if deque.len() > 1000 {
                             continue;
                         } else {
                             let samples_this_tick = cbuf.samples_this_tick();
@@ -190,7 +191,6 @@ fn main() -> eyre::Result<()> {
                 }
             }
         }
-        break;
     }
 
     Ok(())
