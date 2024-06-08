@@ -154,6 +154,7 @@ fn main() -> eyre::Result<()> {
     for _ in 0..4 {
         channel_bufs.push(ChannelBuffer::new())
     }
+    let mut mixing_buf = vec![0i16; 960];
 
     let stream = stream.unwrap();
     stream.play().unwrap();
@@ -166,9 +167,25 @@ fn main() -> eyre::Result<()> {
         for row in pat.rows.iter() {
             let mut tick = 0;
 
+            mixing_buf.fill(0);
             while tick < speed {
-                for (cbuf, chan) in channel_bufs.iter_mut().zip(row.channels.iter()) {
+                for (cbuf, chan) in channel_bufs.iter_mut().zip(row.channels.iter()).take(1) {
                     cbuf.update(chan, &module.sample_info);
+
+                    // 48000 Hz
+                    let dup_factor = 960 / cbuf.samples_this_tick();
+
+                    // let mut i = 0;
+                    // 'mix: for b in &cbuf.data {
+                    //     for _ in 0..dup_factor {
+                    //         mixing_buf[i] += *b as i8 as i16;
+                    //         i += 1;
+                            
+                    //         if i >= mixing_buf.len() {
+                    //             break 'mix;
+                    //         }
+                    //     }
+                    // }
 
                     'outer: loop {
                         let mut deque = BUFFER.lock().unwrap();
@@ -176,19 +193,42 @@ fn main() -> eyre::Result<()> {
                             continue;
                         } else {
                             let samples_this_tick = cbuf.samples_this_tick();
-                            // println!("{:?}", &cbuf.data[0..samples_this_tick as usize]);
+                            println!("{:?}", &cbuf.data[0..samples_this_tick as usize]);
                             for b in &cbuf.data[0..samples_this_tick as usize] {
+                                deque.push_back(*b as i8 as i16);
+                                deque.push_back(*b as i8 as i16);
                                 deque.push_back(*b as i8 as i16);
                             }
 
                             break 'outer;
                         }
                     }
-
                     // println!("{:?}, {}", row, tick);
                     // // println!("{:?}, {}, {}, {}, {}, {}, {}, {:?}, {}", row, tick, ch0_hz, ch1_hz, ch2_hz, ch3_hz, ch0_samples_this_tick, channel0, channel0_last_period);
-                    tick += 1;
+
                 }
+
+                // 'outer: loop {
+                //     let mut deque = BUFFER.lock().unwrap();
+                //     if deque.len() > 1000 {
+                //         continue;
+                //     } else {
+                //         // let samples_this_tick = cbuf.samples_this_tick();
+                //         // println!("{:?}", &cbuf.data[0..samples_this_tick as usize]);
+                //         for b in &mixing_buf {
+                //             deque.push_back(*b);
+                //         }
+
+                //         break 'outer;
+                //     }
+                // }
+
+                tick += 1;
+
+                
+
+
+
             }
         }
     }
