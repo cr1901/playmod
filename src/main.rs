@@ -6,6 +6,7 @@ use modfile::ptmf::{self, Channel, SampleInfo};
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
+use std::time::Duration;
 
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
@@ -42,13 +43,13 @@ impl ChannelBuffer {
         // // println!("Update {:?}", channel);
         if channel.period != 0 {
             self.curr_period = Some(channel.period);
-            self.curr_offset = 0;
         } else {
             self.curr_period = None;
         }
 
-        if channel.sample_number != 0 {
+        if channel.sample_number != 0 && self.curr_sample.is_none() {
             self.curr_sample = Some(channel.sample_number);
+            self.curr_offset = 0;
         } else {
             self.curr_sample = None;
         }
@@ -70,7 +71,7 @@ impl ChannelBuffer {
         let s_data = &sinfo[(self.sample() - 1) as usize].data;
         let samples_this_tick = self.samples_this_tick();
 
-        println!("{}, {}, {}", self.curr_offset, s_len, self.sample());
+        println!("{}, {}, {}, {:?}, {}", self.curr_offset, s_len, self.sample(), self.period(), self.samples_this_tick());
         if self.curr_offset + samples_this_tick >= s_len {
             
             let (rest, start) = s_data.split_at(self.curr_offset as usize);
@@ -159,7 +160,7 @@ fn main() -> eyre::Result<()> {
     let stream = stream.unwrap();
     stream.play().unwrap();
 
-    for pat in module
+    'all: for pat in module
         .positions
         .data
         .map(|order| &module.patterns[order as usize]).iter().take(6)
@@ -170,6 +171,7 @@ fn main() -> eyre::Result<()> {
             mixing_buf.fill(0);
             while tick < speed {
                 for (cbuf, chan) in channel_bufs.iter_mut().zip(row.channels.iter()).take(1) {
+                    println!("tick: {}", tick);
                     cbuf.update(chan, &module.sample_info);
 
                     // 48000 Hz
@@ -193,7 +195,7 @@ fn main() -> eyre::Result<()> {
                             continue;
                         } else {
                             let samples_this_tick = cbuf.samples_this_tick();
-                            println!("{:?}", &cbuf.data[0..samples_this_tick as usize]);
+                            // println!("{:?}", &cbuf.data[0..samples_this_tick as usize]);
                             for b in &cbuf.data[0..samples_this_tick as usize] {
                                 deque.push_back(*b as i8 as i16);
                                 deque.push_back(*b as i8 as i16);
@@ -205,8 +207,9 @@ fn main() -> eyre::Result<()> {
                     }
                     // println!("{:?}, {}", row, tick);
                     // // println!("{:?}, {}, {}, {}, {}, {}, {}, {:?}, {}", row, tick, ch0_hz, ch1_hz, ch2_hz, ch3_hz, ch0_samples_this_tick, channel0, channel0_last_period);
-
                 }
+
+
 
                 // 'outer: loop {
                 //     let mut deque = BUFFER.lock().unwrap();
@@ -230,8 +233,13 @@ fn main() -> eyre::Result<()> {
 
 
             }
+
+            
         }
+        // break 'all;
     }
+
+    // std::thread::sleep(Duration::from_millis(1000));
 
     Ok(())
 }
