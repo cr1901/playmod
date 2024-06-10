@@ -1,12 +1,11 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{self, Stream};
-use eyre::{eyre, ContextCompat, Result};
-use modfile::ptmf::{self, Channel, SampleInfo};
+use cpal::{self};
+use eyre::{eyre, ContextCompat};
+use modfile::ptmf::{self};
 
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
-use std::time::Duration;
 
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
@@ -21,7 +20,7 @@ static BUFFER: Lazy<Arc<Mutex<VecDeque<i16>>>> =
 struct ChannelState {
     pub state: SampleState,
     pub num: u8,
-    pub period: u16
+    pub period: u16,
 }
 
 impl ChannelState {
@@ -30,10 +29,10 @@ impl ChannelState {
             state: SampleState {
                 looped_yet: false,
                 sample_offset: 0,
-                sample_frac: 0
+                sample_frac: 0,
             },
             num: 0,
-            period: 0
+            period: 0,
         }
     }
 
@@ -41,7 +40,7 @@ impl ChannelState {
         self.state = SampleState {
             looped_yet: false,
             sample_offset: 0,
-            sample_frac: 0
+            sample_frac: 0,
         };
         self.num = num;
     }
@@ -58,7 +57,7 @@ fn main() -> eyre::Result<()> {
     let file = File::open(filename)?;
 
     let mut reader = BufReader::new(&file);
-    let mut module = ptmf::read_mod(&mut reader, false).unwrap();
+    let module = ptmf::read_mod(&mut reader, false).unwrap();
 
     let host = cpal::default_host();
     let device = host
@@ -72,7 +71,6 @@ fn main() -> eyre::Result<()> {
         cpal::SampleFormat::I16 => run::<i16>(&device, &config.into()),
         cpal::SampleFormat::U16 => unimplemented!(), /* cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), module.sample_info), */
     };
-    
 
     let mut speed = 6;
 
@@ -88,7 +86,9 @@ fn main() -> eyre::Result<()> {
     'all: for pat in module
         .positions
         .data
-        .map(|order| &module.patterns[order as usize]).iter().take(module.length as usize)
+        .map(|order| &module.patterns[order as usize])
+        .iter()
+        .take(module.length as usize)
     {
         for row in pat.rows.iter() {
             let mut tick = 0;
@@ -106,7 +106,13 @@ fn main() -> eyre::Result<()> {
             while tick < speed {
                 mixing_buf.fill(0);
                 for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
-                    mix_sample_for_tick(&mut mixing_buf, &mut cstate.state, &module.sample_info[(cstate.num - 1) as usize], cstate.period, sample_rate);
+                    mix_sample_for_tick(
+                        &mut mixing_buf,
+                        &mut cstate.state,
+                        &module.sample_info[(cstate.num - 1) as usize],
+                        cstate.period,
+                        sample_rate,
+                    );
                 }
 
                 dump_buf(&mixing_buf);

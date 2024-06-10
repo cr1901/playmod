@@ -1,19 +1,14 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use cpal::{self, Stream};
-use eyre::{eyre, ContextCompat, Result};
-use modfile::ptmf::{self, Channel, SampleInfo};
+use cpal::{self};
+use eyre::{eyre, ContextCompat};
+use modfile::ptmf::{self};
 
-use clap::{Parser, Subcommand};
-use clap::ValueEnum;
+use clap::Parser;
 
-use once_cell::sync::Lazy;
-use std::collections::VecDeque;
 use std::fs::File;
 use std::io::BufReader;
-use std::sync::{Arc, Mutex};
 
 use playmod::*;
-
 
 #[derive(clap::Parser)]
 #[clap(author, version)]
@@ -22,7 +17,7 @@ pub struct Args {
     pub modfile: String,
     #[clap(value_enum)]
     pub note: Note,
-    pub sample_no: u8
+    pub sample_no: u8,
 }
 
 fn main() -> eyre::Result<()> {
@@ -46,7 +41,8 @@ fn main() -> eyre::Result<()> {
     let host = cpal::default_host();
     let device = host
         .default_output_device()
-        .wrap_err("failed to find output device").unwrap();
+        .wrap_err("failed to find output device")
+        .unwrap();
     let config = device.default_output_config().unwrap();
     let sample_rate = config.sample_rate().0;
 
@@ -61,7 +57,7 @@ fn main() -> eyre::Result<()> {
     let mut state = SampleState {
         looped_yet: false,
         sample_offset: 0,
-        sample_frac: 0
+        sample_frac: 0,
     };
 
     println!("{}", sample.length);
@@ -71,5 +67,3 @@ fn main() -> eyre::Result<()> {
 
     Ok(())
 }
-
-
