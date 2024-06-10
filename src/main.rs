@@ -88,7 +88,7 @@ fn main() -> eyre::Result<()> {
     'all: for pat in module
         .positions
         .data
-        .map(|order| &module.patterns[order as usize]).iter().take(6)
+        .map(|order| &module.patterns[order as usize]).iter().take(module.length as usize)
     {
         for row in pat.rows.iter() {
             let mut tick = 0;
@@ -111,6 +111,12 @@ fn main() -> eyre::Result<()> {
 
                 dump_buf(&mixing_buf);
                 tick += 1;
+            }
+
+            for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
+                if chan.effect & 0x0f00 == 0x0f00 {
+                    speed = chan.effect & 0x001f;
+                }
             }
         }
         // break 'all;
