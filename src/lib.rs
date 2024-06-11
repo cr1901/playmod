@@ -8,6 +8,7 @@ use clap::ValueEnum;
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 static BUFFER: Lazy<Arc<Mutex<VecDeque<i16>>>> =
     Lazy::new(|| Arc::new(Mutex::new(VecDeque::new())));
@@ -106,13 +107,16 @@ pub fn mix_sample_for_tick<P>(
 {
     // FIXME: Get rid of floating point, I don't want it... used fixed-point
     // increments if we have to.
+    // 7159090.5 for NTSC
     let freq = 7093789.2 / (period.into() as f32 * 2.0);
     let sample_rate = sample_rate as f32;
 
     let inc_rate = (((freq / sample_rate) * 256.0) as u32 >> 8) as u16;
     let inc_rate_frac: u8 = (((freq / sample_rate) * 256.0) as u32 % 256) as u8;
 
+    // 60.0 for NTSC
     let host_samples_per_tick = (sample_rate / 50.0) as u16;
+    buf.truncate(host_samples_per_tick as usize);
 
     for i in 0..host_samples_per_tick {
         let (new_frac, carry) = state.sample_frac.overflowing_add(inc_rate_frac);
@@ -139,7 +143,7 @@ pub fn mix_sample_for_tick<P>(
         }
 
         let curr_sample_val = sample.data[state.sample_offset as usize] as i8 as i16;
-        buf[i as usize] += curr_sample_val << 3;
+        buf[i as usize] += curr_sample_val << 3; // Raw values are a bit too quiet.
     }
 }
 
@@ -147,6 +151,9 @@ pub fn dump_buf(buf: &Vec<i16>) {
     'wait: loop {
         let mut deque = BUFFER.lock().unwrap();
         if deque.len() > 1000 {
+            drop(deque);
+            // Don't busy loop/waste cycles.
+            std::thread::sleep(Duration::from_millis(10));
             continue 'wait;
         }
 
