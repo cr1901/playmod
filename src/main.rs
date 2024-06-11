@@ -6,6 +6,7 @@ use modfile::ptmf::{self};
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
+use std::num::NonZeroU8;
 
 use once_cell::sync::Lazy;
 use std::collections::VecDeque;
@@ -19,7 +20,7 @@ static BUFFER: Lazy<Arc<Mutex<VecDeque<i16>>>> =
 #[derive(Debug)]
 struct ChannelState {
     pub state: SampleState,
-    pub num: u8,
+    pub num: Option<NonZeroU8>,
     pub period: u16,
 }
 
@@ -31,18 +32,18 @@ impl ChannelState {
                 sample_offset: 0,
                 sample_frac: 0,
             },
-            num: 0,
+            num: None,
             period: 0,
         }
     }
 
-    pub fn new_sample(&mut self, num: u8) {
+    pub fn new_sample(&mut self, num: NonZeroU8) {
         self.state = SampleState {
             looped_yet: false,
             sample_offset: 0,
             sample_frac: 0,
         };
-        self.num = num;
+        self.num = Some(num);
     }
 }
 
@@ -94,8 +95,8 @@ fn main() -> eyre::Result<()> {
             let mut tick = 0;
 
             for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
-                if chan.sample_number != 0 {
-                    cstate.new_sample(chan.sample_number);
+                if let Some(sample_number) = NonZeroU8::new(chan.sample_number) {
+                    cstate.new_sample(sample_number);
                 }
 
                 if chan.period != 0 {
@@ -105,11 +106,11 @@ fn main() -> eyre::Result<()> {
 
             while tick < speed {
                 mixing_buf.fill(0);
-                for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
+                for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).filter(|(cs,_)| cs.num.is_some()) {
                     mix_sample_for_tick(
                         &mut mixing_buf,
                         &mut cstate.state,
-                        &module.sample_info[(cstate.num - 1) as usize],
+                        &module.sample_info[(cstate.num.unwrap().get() - 1) as usize],
                         cstate.period,
                         sample_rate,
                     );
@@ -120,7 +121,6 @@ fn main() -> eyre::Result<()> {
             }
 
             for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
-                
                 if chan.effect & 0x0f00 == 0x0e00 {
                     println!("Extended Effect {}: arg {}", chan.effect & 0x00f0 >> 4, chan.effect & 0x000f);
                 } else if chan.effect & 0x0f00 == 0x0f00 {
