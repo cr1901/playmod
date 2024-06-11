@@ -120,7 +120,11 @@ fn main() -> eyre::Result<()> {
             }
 
             for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
-                if chan.effect & 0x0f00 == 0x0f00 {
+                
+                if chan.effect & 0x0f00 == 0x0e00 {
+                    println!("Extended Effect {}: arg {}", chan.effect & 0x00f0 >> 4, chan.effect & 0x000f);
+                } else if chan.effect & 0x0f00 == 0x0f00 {
+                    println!("Change speed to {}", chan.effect & 0x001f);
                     speed = chan.effect & 0x001f;
                 }
             }

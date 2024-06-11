@@ -119,6 +119,10 @@ pub fn mix_sample_for_tick<P>(
     buf.truncate(host_samples_per_tick as usize);
 
     for i in 0..host_samples_per_tick {
+        if sample.repeat_length <= 2 && state.looped_yet {
+            break;
+        }
+
         let (new_frac, carry) = state.sample_frac.overflowing_add(inc_rate_frac);
         state.sample_frac = new_frac;
 
@@ -129,7 +133,7 @@ pub fn mix_sample_for_tick<P>(
             state.sample_offset += inc_rate;
         }
 
-        if !state.looped_yet || sample.repeat_length <= 2 {
+        if sample.repeat_length <= 2 {
             if state.sample_offset >= sample.length * 2 {
                 state.looped_yet = true;
                 state.sample_offset =
