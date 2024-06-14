@@ -15,6 +15,7 @@ struct ChannelState {
     pub state: SampleState,
     pub num: Option<NonZeroU8>,
     pub period: u16,
+    pub volume: Option<u8>
 }
 
 impl ChannelState {
@@ -23,12 +24,18 @@ impl ChannelState {
             state: SampleState::new(),
             num: None,
             period: 0,
+            volume: None
         }
     }
 
     pub fn new_sample(&mut self, num: NonZeroU8) {
         self.state = SampleState::new();
         self.num = Some(num);
+        self.volume = None;
+    }
+
+    pub fn set_volume(&mut self, vol: u8) {
+        self.volume = Some(vol);
     }
 }
 
@@ -82,11 +89,28 @@ fn main() -> eyre::Result<()> {
 
             for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
                 if let Some(sample_number) = NonZeroU8::new(chan.sample_number) {
+                    let vol = module.sample_info[(sample_number.get() - 1) as usize].volume;
                     cstate.new_sample(sample_number);
+                    cstate.set_volume(vol);
                 }
 
                 if chan.period != 0 {
                     cstate.period = chan.period;
+                }
+
+                let effect_no = ((chan.effect & 0x0f00) >> 8) as u8;
+                let effect_x = ((chan.effect & 0x00f0) >> 4) as u8;
+                let effect_y = (chan.effect & 0x000f) as u8;
+                let effect_xy = (chan.effect & 0x00ff) as u8;
+
+                match effect_no {
+                    0x0 if effect_xy == 0 => {},
+                    0xc => { cstate.set_volume(effect_xy) }
+                    0xd => {},
+                    0xe => {},
+                    0xf => { // FIXME: Takes effect on this line or next line?
+                    },
+                    _ => println!("Unimplemented effect {}: args {}, {}", effect_no, effect_x, effect_y),
                 }
             }
 
@@ -98,6 +122,7 @@ fn main() -> eyre::Result<()> {
                         &mut cstate.state,
                         &module.sample_info[(cstate.num.unwrap().get() - 1) as usize],
                         cstate.period,
+                        cstate.volume,
                         sample_rate,
                     );
                 }
@@ -114,6 +139,7 @@ fn main() -> eyre::Result<()> {
 
                 match effect_no {
                     0x0 if effect_xy == 0 => {},
+                    0xc => {},
                     0xd => {
                         jump_offset = (effect_x*10 + effect_y) as usize;
                         continue 'all;

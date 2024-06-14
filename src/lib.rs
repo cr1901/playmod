@@ -105,7 +105,7 @@ impl SampleState {
         Self {
             looped_yet: false,
             sample_offset: 0,
-            sample_frac: 0
+            sample_frac: 0,
         }
     }
 }
@@ -115,6 +115,7 @@ pub fn mix_sample_for_tick<P>(
     state: &mut SampleState,
     sample: &SampleInfo,
     period: P,
+    volume: Option<u8>,
     sample_rate: u32,
 ) where
     P: Into<u16>,
@@ -151,7 +152,8 @@ pub fn mix_sample_for_tick<P>(
             state.sample_offset -= sample.repeat_length * 2;
         }
 
-        let curr_sample_val = sample.data[state.sample_offset as usize] as i8 as i16;
+
+        let curr_sample_val = ((volume.unwrap_or(sample.volume) as i16) * (sample.data[state.sample_offset as usize] as i8 as i16)) / 64;
         buf[i as usize] += curr_sample_val << 3; // Raw values are a bit too quiet.
     }
 }

@@ -81,6 +81,7 @@ S: PushSamples {
         state,
         sample,
         period as u16,
+        Some(64),
         sample_rate,
     );
     sink.push_samples(&mixing_buf);
