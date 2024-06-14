@@ -8,14 +8,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::num::NonZeroU8;
 
-use once_cell::sync::Lazy;
-use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
-
 use playmod::*;
-
-static BUFFER: Lazy<Arc<Mutex<VecDeque<i16>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(VecDeque::new())));
 
 #[derive(Debug)]
 struct ChannelState {
@@ -67,9 +60,9 @@ fn main() -> eyre::Result<()> {
     let config = device.default_output_config()?;
     let sample_rate = config.sample_rate().0;
 
-    let stream = match config.sample_format() {
-        cpal::SampleFormat::F32 => run::<f32>(&device, &config.into()),
-        cpal::SampleFormat::I16 => run::<i16>(&device, &config.into()),
+    let mut sink = match config.sample_format() {
+        cpal::SampleFormat::F32 => Sink::new::<f32>(&device, &config.into())?,
+        cpal::SampleFormat::I16 => Sink::new::<i16>(&device, &config.into())?,
         cpal::SampleFormat::U16 => unimplemented!(), /* cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), module.sample_info), */
     };
 
@@ -81,8 +74,7 @@ fn main() -> eyre::Result<()> {
     }
     let mut mixing_buf = vec![0i16; 960];
 
-    let stream = stream.unwrap();
-    stream.play().unwrap();
+    sink.start()?;
 
     let mut jump_offset = 0;
     'all: for pat in module
@@ -118,7 +110,7 @@ fn main() -> eyre::Result<()> {
                     );
                 }
 
-                dump_buf(&mixing_buf);
+                sink.push_samples(&mixing_buf);
                 tick += 1;
             }
 

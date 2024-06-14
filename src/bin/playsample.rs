@@ -46,13 +46,13 @@ fn main() -> eyre::Result<()> {
     let config = device.default_output_config().unwrap();
     let sample_rate = config.sample_rate().0;
 
-    let stream = match config.sample_format() {
-        cpal::SampleFormat::F32 => run::<f32>(&device, &config.into())?,
-        cpal::SampleFormat::I16 => run::<i16>(&device, &config.into())?,
+    let mut sink = match config.sample_format() {
+        cpal::SampleFormat::F32 => Sink::new::<f32>(&device, &config.into())?,
+        cpal::SampleFormat::I16 => Sink::new::<i16>(&device, &config.into())?,
         cpal::SampleFormat::U16 => unimplemented!(), /* cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), module.sample_info), */
     };
 
-    stream.play()?;
+    sink.start()?;
 
     let mut state = SampleState {
         looped_yet: false,
@@ -69,16 +69,16 @@ fn main() -> eyre::Result<()> {
 
     let mut mixing_buf = vec![0i16; host_samples_per_tick as usize];
     println!("{}, {}, {}, {}", freq, sample_rate_, inc_rate, inc_rate_frac);
-    println!("{}, {}, {}", sample.length, sample.repeat_start, sample.repeat_length);
     for _ in 0..200 {
-        play_tick(&mut mixing_buf, &mut state, sample, args.note, sample_rate);
+        play_tick(&mut sink,&mut mixing_buf, &mut state, sample, args.note, sample_rate);
     }
 
     Ok(())
 }
 
 
-pub fn play_tick(mixing_buf: &mut Vec<i16>, state: &mut SampleState, sample: &SampleInfo, period: Note, sample_rate: u32) {
+pub fn play_tick<S>(sink: &mut S, mixing_buf: &mut Vec<i16>, state: &mut SampleState, sample: &SampleInfo, period: Note, sample_rate: u32) where 
+S: PushSamples {
     mixing_buf.fill(0);
     mix_sample_for_tick(
         mixing_buf,
@@ -87,5 +87,5 @@ pub fn play_tick(mixing_buf: &mut Vec<i16>, state: &mut SampleState, sample: &Sa
         period as u16,
         sample_rate,
     );
-    dump_buf(&mixing_buf);
+    sink.push_samples(&mixing_buf);
 }

@@ -13,7 +13,8 @@ eyre = "0.6.5"
 once_cell = "1.19.0"
 
 [features]
-clap = ["dep:clap"]
+std = []
+clap = ["dep:clap", "std"]
 
 [dependencies.modfile]
 git = "https://github.com/hypp/modfile"
