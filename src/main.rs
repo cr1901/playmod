@@ -36,39 +36,10 @@ fn main() -> eyre::Result<()> {
         cpal::SampleFormat::U16 => unimplemented!(), /* cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), module.sample_info), */
     };
 
-    let mut speed = 6;
-
-    let mut channel_states = Vec::new();
-    for _ in 0..4 {
-        channel_states.push(ChannelState::new())
-    }
-    let mut mixing_buf = vec![0i16; 960];
-
     sink.start()?;
 
-    let mut jump_offset = 0;
-    'all: for pat in module
-        .positions
-        .data
-        .map(|order| &module.patterns[order as usize])
-        .iter()
-        .take(module.length as usize)
-    {
-        for row in pat.rows.iter().skip(jump_offset) {
-            jump_offset = 0;
-
-            mixing_buf.fill(0);
-            let res = drive_row(&mut sink, &mut mixing_buf, row, &mut channel_states, &module.sample_info, &mut speed, sample_rate);
-
-            match res {
-                NextAction::Continue => {},
-                NextAction::Jump(offs) => {
-                    jump_offset = offs;
-                    continue 'all;
-                }
-            }
-        }
-    }
+    let mut mixing_buf = vec![0i16; 960];
+    play_mod(module, sink, &mut mixing_buf, sample_rate);
 
     Ok(())
 }

@@ -2,7 +2,7 @@
 
 use core::num::NonZeroU8;
 
-use modfile::ptmf::{Row, SampleInfo};
+use modfile::ptmf::{PTModule, Row, SampleInfo};
 
 #[cfg(feature = "clap")]
 use clap::ValueEnum;
@@ -269,4 +269,39 @@ where S: PushSamples {
     }
 
     NextAction::Continue
+}
+
+
+pub fn play_mod<S>(module: PTModule, mut sink: S, mixing_buf: &mut [i16], sample_rate: u32)
+where S: PushSamples
+{
+    let mut speed = 6;
+
+    let mut channel_states = [
+        ChannelState::new(),
+        ChannelState::new(),
+        ChannelState::new(),
+        ChannelState::new()
+    ];
+
+    let mut jump_offset = 0;
+    'all: for pat in module
+        .positions
+        .data
+        .map(|order| &module.patterns[order as usize])
+        .iter()
+        .take(module.length as usize)
+    {
+        for row in pat.rows.iter().skip(jump_offset) {
+            jump_offset = 0;
+
+            match drive_row(&mut sink, mixing_buf, row, &mut channel_states, &module.sample_info, &mut speed, sample_rate) {
+                NextAction::Continue => {},
+                NextAction::Jump(offs) => {
+                    jump_offset = offs;
+                    continue 'all;
+                }
+            }
+        }
+    }
 }
