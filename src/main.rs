@@ -10,35 +10,6 @@ use std::num::NonZeroU8;
 
 use playmod::*;
 
-#[derive(Debug)]
-struct ChannelState {
-    pub state: SampleState,
-    pub num: Option<NonZeroU8>,
-    pub period: u16,
-    pub volume: Option<u8>
-}
-
-impl ChannelState {
-    pub fn new() -> Self {
-        Self {
-            state: SampleState::new(),
-            num: None,
-            period: 0,
-            volume: None
-        }
-    }
-
-    pub fn new_sample(&mut self, num: NonZeroU8) {
-        self.state = SampleState::new();
-        self.num = Some(num);
-        self.volume = None;
-    }
-
-    pub fn set_volume(&mut self, vol: u8) {
-        self.volume = Some(vol);
-    }
-}
-
 fn main() -> eyre::Result<()> {
     let args: Vec<String> = env::args().collect();
 
@@ -91,11 +62,10 @@ fn main() -> eyre::Result<()> {
                 if let Some(sample_number) = NonZeroU8::new(chan.sample_number) {
                     let vol = module.sample_info[(sample_number.get() - 1) as usize].volume;
                     cstate.new_sample(sample_number);
-                    cstate.set_volume(vol);
                 }
 
                 if chan.period != 0 {
-                    cstate.period = chan.period;
+                    cstate.set_period(chan.period);
                 }
 
                 let effect_no = ((chan.effect & 0x0f00) >> 8) as u8;
@@ -116,14 +86,11 @@ fn main() -> eyre::Result<()> {
 
             while tick < speed {
                 mixing_buf.fill(0);
-                for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).filter(|(cs,_)| cs.num.is_some()) {
-                    mix_sample_for_tick(
+                for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).filter(|(cs,_)| cs.sample_num().is_some()) {
+                    cstate.mix_sample_for_tick(
                         &mut mixing_buf,
-                        &mut cstate.state,
-                        &module.sample_info[(cstate.num.unwrap().get() - 1) as usize],
-                        cstate.period,
-                        cstate.volume,
-                        sample_rate,
+                        &module.sample_info[(cstate.sample_num().unwrap().get() - 1) as usize],
+                        sample_rate
                     );
                 }
 

@@ -7,6 +7,7 @@ use clap::Parser;
 
 use std::fs::File;
 use std::io::BufReader;
+use std::num::{NonZero, NonZeroU8};
 
 use playmod::*;
 
@@ -54,8 +55,6 @@ fn main() -> eyre::Result<()> {
 
     sink.start()?;
 
-    let mut state = SampleState::new();
-
     let freq = 7093789.2 / (args.note as u16 as f32 * 2.0);
     let sample_rate_ = sample_rate as f32;
 
@@ -65,24 +64,27 @@ fn main() -> eyre::Result<()> {
 
     let mut mixing_buf = vec![0i16; host_samples_per_tick as usize];
     println!("{}, {}, {}, {}", freq, sample_rate_, inc_rate, inc_rate_frac);
+
+    let mut cstate = ChannelState::new();
+    cstate.new_sample(NonZeroU8::new(args.sample_no).unwrap());
+    cstate.set_volume(64);
+    cstate.set_period(args.note as u16);
+
     for _ in 0..200 {
-        play_tick(&mut sink,&mut mixing_buf, &mut state, sample, args.note, sample_rate);
+        play_tick(&mut sink,&mut mixing_buf, &mut cstate, sample,sample_rate);
     }
 
     Ok(())
 }
 
 
-pub fn play_tick<S>(sink: &mut S, mixing_buf: &mut Vec<i16>, state: &mut SampleState, sample: &SampleInfo, period: Note, sample_rate: u32) where 
+pub fn play_tick<S>(sink: &mut S, mixing_buf: &mut Vec<i16>, cstate: &mut ChannelState, sample: &SampleInfo, sample_rate: u32) where 
 S: PushSamples {
     mixing_buf.fill(0);
-    mix_sample_for_tick(
+    cstate.mix_sample_for_tick(
         mixing_buf,
-        state,
         sample,
-        period as u16,
-        Some(64),
-        sample_rate,
+        sample_rate
     );
     sink.push_samples(&mixing_buf);
 }

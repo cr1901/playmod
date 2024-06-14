@@ -1,10 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use cpal::traits::DeviceTrait;
-use cpal::{self, Stream};
-use eyre::Result;
+use core::num::NonZeroU8;
+
 use modfile::ptmf::SampleInfo;
 
+#[cfg(feature = "clap")]
 use clap::ValueEnum;
 
 #[cfg(feature = "std")]
@@ -13,7 +13,7 @@ mod hosted;
 pub use hosted::*;
 
 #[derive(Copy, Clone)]
-#[cfg_attr(feature = "std", derive(ValueEnum))]
+#[cfg_attr(feature = "clap", derive(ValueEnum))]
 pub enum Note {
     #[cfg_attr(feature = "clap", clap(name = "C1"))]
     C1 = 856,
@@ -110,50 +110,85 @@ impl SampleState {
     }
 }
 
-pub fn mix_sample_for_tick<P>(
-    buf: &mut Vec<i16>,
-    state: &mut SampleState,
-    sample: &SampleInfo,
-    period: P,
-    volume: Option<u8>,
-    sample_rate: u32,
-) where
-    P: Into<u16>,
-{
-    // FIXME: Get rid of floating point, I don't want it... used fixed-point
-    // increments if we have to.
-    // 7159090.5 for NTSC
-    let freq = 7093789.2 / (period.into() as f32 * 2.0);
-    let sample_rate = sample_rate as f32;
+#[derive(Debug)]
+pub struct ChannelState {
+    state: SampleState,
+    num: Option<NonZeroU8>,
+    period: u16,
+    volume: Option<u8>
+}
 
-    let inc_rate = (((freq / sample_rate) * 256.0) as u32 >> 8) as u16;
-    let inc_rate_frac: u8 = (((freq / sample_rate) * 256.0) as u32 % 256) as u8;
-
-    // 60.0 for NTSC
-    let host_samples_per_tick = (sample_rate / 50.0) as u16;
-    buf.truncate(host_samples_per_tick as usize);
-
-    for i in 0..host_samples_per_tick {
-        if sample.repeat_length <= 2 && state.looped_yet {
-            break;
+impl ChannelState {
+    pub fn new() -> Self {
+        Self {
+            state: SampleState::new(),
+            num: None,
+            period: 0,
+            volume: None
         }
+    }
 
-        let (new_frac, carry) = state.sample_frac.overflowing_add(inc_rate_frac);
-        state.sample_frac = new_frac;
+    pub fn new_sample(&mut self, num: NonZeroU8) {
+        self.state = SampleState::new();
+        self.num = Some(num);
+        self.volume = None;
+    }
 
-        state.sample_offset += inc_rate + carry as u16;
+    pub fn set_volume(&mut self, vol: u8) {
+        self.volume = Some(vol);
+    }
 
-        if (state.sample_offset >= sample.length * 2) && !state.looped_yet {
-            // println!("At {}, going to {} (repeat start {})", state.sample_offset, sample.repeat_start * 2, sample.repeat_start * 2);
-            state.looped_yet = true;
-            state.sample_offset = sample.repeat_start * 2 + (state.sample_offset - sample.length * 2);
-        } else if state.looped_yet && state.sample_offset >= sample.repeat_start * 2 + sample.repeat_length * 2 {
-            // println!("At {}, going to {} (repeat start {})", state.sample_offset, state.sample_offset - sample.repeat_length * 2, sample.repeat_start * 2);
-            state.sample_offset -= sample.repeat_length * 2;
+    pub fn set_period(&mut self, period: u16) {
+        self.period = period;
+    }
+
+    pub fn sample_num(&self) -> Option<NonZeroU8> {
+        self.num
+    }
+
+    pub fn mix_sample_for_tick(
+        &mut self,
+        buf: &mut Vec<i16>,
+        sample: &SampleInfo,
+        sample_rate: u32,
+    ) {
+        // FIXME: Get rid of floating point, I don't want it... used fixed-point
+        // increments if we have to.
+        // 7159090.5 for NTSC
+        let freq = 7093789.2 / (self.period as f32 * 2.0);
+        let sample_rate = sample_rate as f32;
+    
+        let inc_rate = (((freq / sample_rate) * 256.0) as u32 >> 8) as u16;
+        let inc_rate_frac: u8 = (((freq / sample_rate) * 256.0) as u32 % 256) as u8;
+    
+        // 60.0 for NTSC
+        let host_samples_per_tick = (sample_rate / 50.0) as u16;
+        buf.truncate(host_samples_per_tick as usize);
+    
+        for i in 0..host_samples_per_tick {
+            if sample.repeat_length <= 2 && self.state.looped_yet {
+                break;
+            }
+    
+            let (new_frac, carry) = self.state.sample_frac.overflowing_add(inc_rate_frac);
+            self.state.sample_frac = new_frac;
+    
+            self.state.sample_offset += inc_rate + carry as u16;
+    
+            if (self.state.sample_offset >= sample.length * 2) && !self.state.looped_yet {
+                // println!("At {}, going to {} (repeat start {})", state.sample_offset, sample.repeat_start * 2, sample.repeat_start * 2);
+                self.state.looped_yet = true;
+                self.state.sample_offset = sample.repeat_start * 2 + (self.state.sample_offset - sample.length * 2);
+            } else if self.state.looped_yet && self.state.sample_offset >= sample.repeat_start * 2 + sample.repeat_length * 2 {
+                // println!("At {}, going to {} (repeat start {})", state.sample_offset, state.sample_offset - sample.repeat_length * 2, sample.repeat_start * 2);
+                self.state.sample_offset -= sample.repeat_length * 2;
+            }
+    
+    
+            let curr_sample_val = ((self.volume.unwrap_or(sample.volume) as i16) * (sample.data[self.state.sample_offset as usize] as i8 as i16)) / 64;
+            buf[i as usize] += curr_sample_val << 3; // Raw values are a bit too quiet.
         }
-
-
-        let curr_sample_val = ((volume.unwrap_or(sample.volume) as i16) * (sample.data[state.sample_offset as usize] as i8 as i16)) / 64;
-        buf[i as usize] += curr_sample_val << 3; // Raw values are a bit too quiet.
     }
 }
+
+
