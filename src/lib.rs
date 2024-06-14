@@ -95,9 +95,19 @@ pub trait PushSamples {
 
 #[derive(Debug)]
 pub struct SampleState {
-    pub looped_yet: bool,
-    pub sample_offset: u16,
-    pub sample_frac: u8,
+    looped_yet: bool,
+    sample_offset: u16,
+    sample_frac: u8,
+}
+
+impl SampleState {
+    pub fn new() -> Self {
+        Self {
+            looped_yet: false,
+            sample_offset: 0,
+            sample_frac: 0
+        }
+    }
 }
 
 pub fn mix_sample_for_tick<P>(

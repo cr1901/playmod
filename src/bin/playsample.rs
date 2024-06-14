@@ -54,11 +54,7 @@ fn main() -> eyre::Result<()> {
 
     sink.start()?;
 
-    let mut state = SampleState {
-        looped_yet: false,
-        sample_offset: 0,
-        sample_frac: 0,
-    };
+    let mut state = SampleState::new();
 
     let freq = 7093789.2 / (args.note as u16 as f32 * 2.0);
     let sample_rate_ = sample_rate as f32;

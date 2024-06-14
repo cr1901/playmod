@@ -20,22 +20,14 @@ struct ChannelState {
 impl ChannelState {
     pub fn new() -> Self {
         Self {
-            state: SampleState {
-                looped_yet: false,
-                sample_offset: 0,
-                sample_frac: 0,
-            },
+            state: SampleState::new(),
             num: None,
             period: 0,
         }
     }
 
     pub fn new_sample(&mut self, num: NonZeroU8) {
-        self.state = SampleState {
-            looped_yet: false,
-            sample_offset: 0,
-            sample_frac: 0,
-        };
+        self.state = SampleState::new();
         self.num = Some(num);
     }
 }
