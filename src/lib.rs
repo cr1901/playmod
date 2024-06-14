@@ -169,56 +169,6 @@ pub fn dump_buf(buf: &Vec<i16>) {
     }
 }
 
-pub fn play_tick(state: &mut SampleState, sample: &SampleInfo, period: Note, sample_rate: u32) {
-    // FIXME: Get rid of floating point, I don't want it... used fixed-point
-    // increments if we have to.
-    let freq = 7093789.2 / (period as u16 as f32 * 2.0);
-    let sample_rate = sample_rate as f32;
-
-    let inc_rate = (((freq / sample_rate) * 256.0) as u32 >> 8) as u16;
-    let inc_rate_frac: u8 = (((freq / sample_rate) * 256.0) as u32 % 256) as u8;
-
-    let host_samples_per_tick = (sample_rate / 50.0) as u16;
-
-    println!("{}, {}, {}, {}", freq, sample_rate, inc_rate, inc_rate_frac);
-
-    'wait: loop {
-        let mut deque = BUFFER.lock().unwrap();
-        if deque.len() > 1000 {
-            continue 'wait;
-        }
-
-        for _ in 0..host_samples_per_tick {
-            let (new_frac, carry) = state.sample_frac.overflowing_add(inc_rate_frac);
-            state.sample_frac = new_frac;
-
-            if carry {
-                state.sample_offset += inc_rate + 1;
-            } else {
-                state.sample_offset += inc_rate;
-            }
-
-            if !state.looped_yet || sample.repeat_length <= 2 {
-                if state.sample_offset >= sample.length * 2 {
-                    state.looped_yet = true;
-                    state.sample_offset =
-                        sample.repeat_start * 2 + (state.sample_offset - sample.length * 2);
-                }
-            } else {
-                if state.sample_offset >= sample.repeat_start * 2 + sample.repeat_length * 2 {
-                    state.sample_offset =
-                        state.sample_offset - (sample.repeat_start * 2 + sample.repeat_length * 2);
-                }
-            }
-
-            let curr_sample_val = sample.data[state.sample_offset as usize] as i8 as i16;
-            deque.push_back(curr_sample_val << 3)
-        }
-
-        break 'wait;
-    }
-}
-
 pub fn run<T>(device: &cpal::Device, config: &cpal::StreamConfig) -> Result<Stream>
 where
     T: cpal::Sample + From<i16>,

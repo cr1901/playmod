@@ -1,7 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{self};
 use eyre::{eyre, ContextCompat};
-use modfile::ptmf::{self};
+use modfile::ptmf::{self, SampleInfo};
 
 use clap::Parser;
 
@@ -60,10 +60,31 @@ fn main() -> eyre::Result<()> {
         sample_frac: 0,
     };
 
-    println!("{}", sample.length);
+    let freq = 7093789.2 / (args.note as u16 as f32 * 2.0);
+    let sample_rate_ = sample_rate as f32;
+
+    let inc_rate = (((freq / sample_rate_) * 256.0) as u32 >> 8) as u16;
+    let inc_rate_frac: u8 = (((freq / sample_rate_) * 256.0) as u32 % 256) as u8;
+    let host_samples_per_tick = (sample_rate_ / 50.0) as u16;
+
+    let mut mixing_buf = vec![0i16; host_samples_per_tick as usize];
+    println!("{}, {}, {}, {}", freq, sample_rate_, inc_rate, inc_rate_frac);
     for _ in 0..200 {
-        play_tick(&mut state, sample, args.note, sample_rate);
+        play_tick(&mut mixing_buf, &mut state, sample, args.note, sample_rate);
     }
 
     Ok(())
+}
+
+
+pub fn play_tick(mixing_buf: &mut Vec<i16>, state: &mut SampleState, sample: &SampleInfo, period: Note, sample_rate: u32) {
+    mixing_buf.fill(0);
+    mix_sample_for_tick(
+        mixing_buf,
+        state,
+        sample,
+        period as u16,
+        sample_rate,
+    );
+    dump_buf(&mixing_buf);
 }
