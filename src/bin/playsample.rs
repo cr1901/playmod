@@ -1,4 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{self};
 use eyre::{eyre, ContextCompat};
 use modfile::ptmf::{self, SampleInfo};
@@ -7,7 +7,7 @@ use clap::Parser;
 
 use std::fs::File;
 use std::io::BufReader;
-use std::num::{NonZero, NonZeroU8};
+use std::num::NonZeroU8;
 
 use playmod::*;
 
@@ -63,7 +63,10 @@ fn main() -> eyre::Result<()> {
     let host_samples_per_tick = (sample_rate_ / 50.0) as u16;
 
     let mut mixing_buf = vec![0i16; host_samples_per_tick as usize];
-    println!("{}, {}, {}, {}", freq, sample_rate_, inc_rate, inc_rate_frac);
+    println!(
+        "{}, {}, {}, {}",
+        freq, sample_rate_, inc_rate, inc_rate_frac
+    );
 
     let mut cstate = ChannelState::new();
     cstate.new_sample(NonZeroU8::new(args.sample_no).unwrap());
@@ -71,20 +74,22 @@ fn main() -> eyre::Result<()> {
     cstate.set_period(args.note as u16);
 
     for _ in 0..200 {
-        play_tick(&mut sink,&mut mixing_buf, &mut cstate, sample,sample_rate);
+        play_tick(&mut sink, &mut mixing_buf, &mut cstate, sample, sample_rate);
     }
 
     Ok(())
 }
 
-
-pub fn play_tick<S>(sink: &mut S, mixing_buf: &mut Vec<i16>, cstate: &mut ChannelState, sample: &SampleInfo, sample_rate: u32) where 
-S: PushSamples {
+pub fn play_tick<S>(
+    sink: &mut S,
+    mixing_buf: &mut Vec<i16>,
+    cstate: &mut ChannelState,
+    sample: &SampleInfo,
+    sample_rate: u32,
+) where
+    S: PushSamples,
+{
     mixing_buf.fill(0);
-    cstate.mix_sample_for_tick(
-        mixing_buf,
-        sample,
-        sample_rate
-    );
+    cstate.mix_sample_for_tick(mixing_buf, sample, sample_rate);
     sink.push_samples(&mixing_buf);
 }

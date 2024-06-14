@@ -1,4 +1,4 @@
-use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
+use cpal::traits::{DeviceTrait, HostTrait};
 use cpal::{self};
 use eyre::{eyre, ContextCompat};
 use modfile::ptmf::{self};
@@ -6,7 +6,6 @@ use modfile::ptmf::{self};
 use std::env;
 use std::fs::File;
 use std::io::BufReader;
-use std::num::NonZeroU8;
 
 use playmod::*;
 
@@ -30,7 +29,7 @@ fn main() -> eyre::Result<()> {
     let config = device.default_output_config()?;
     let sample_rate = config.sample_rate().0;
 
-    let mut sink = match config.sample_format() {
+    let sink = match config.sample_format() {
         cpal::SampleFormat::F32 => Sink::new::<f32>(&device, &config.into())?,
         cpal::SampleFormat::I16 => Sink::new::<i16>(&device, &config.into())?,
         cpal::SampleFormat::U16 => unimplemented!(), /* cpal::SampleFormat::U16 => run::<u16>(&device, &config.into(), module.sample_info), */
