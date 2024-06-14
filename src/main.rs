@@ -84,6 +84,7 @@ fn main() -> eyre::Result<()> {
     let stream = stream.unwrap();
     stream.play().unwrap();
 
+    let mut jump_offset = 0;
     'all: for pat in module
         .positions
         .data
@@ -91,7 +92,8 @@ fn main() -> eyre::Result<()> {
         .iter()
         .take(module.length as usize)
     {
-        for row in pat.rows.iter() {
+        for row in pat.rows.iter().skip(jump_offset) {
+            jump_offset = 0;
             let mut tick = 0;
 
             for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
@@ -128,6 +130,10 @@ fn main() -> eyre::Result<()> {
 
                 match effect_no {
                     0x0 if effect_xy == 0 => {},
+                    0xd => {
+                        jump_offset = (effect_x*10 + effect_y) as usize;
+                        continue 'all;
+                    }
                     0xe if effect_x == 15 => {
                         panic!("Not implementing 0xEF, sorry");
                     }
