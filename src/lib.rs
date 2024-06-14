@@ -2,7 +2,7 @@
 
 use core::num::NonZeroU8;
 
-use modfile::ptmf::SampleInfo;
+use modfile::ptmf::{Row, SampleInfo};
 
 #[cfg(feature = "clap")]
 use clap::ValueEnum;
@@ -148,7 +148,7 @@ impl ChannelState {
 
     pub fn mix_sample_for_tick(
         &mut self,
-        buf: &mut Vec<i16>,
+        buf: &mut [i16],
         sample: &SampleInfo,
         sample_rate: u32,
     ) {
@@ -163,7 +163,6 @@ impl ChannelState {
     
         // 60.0 for NTSC
         let host_samples_per_tick = (sample_rate / 50.0) as u16;
-        buf.truncate(host_samples_per_tick as usize);
     
         for i in 0..host_samples_per_tick {
             if sample.repeat_length <= 2 && self.state.looped_yet {
@@ -192,3 +191,82 @@ impl ChannelState {
 }
 
 
+pub enum NextAction {
+    Continue,
+    Jump(usize)
+}
+
+pub fn drive_row<S>(sink: &mut S, mixing_buf: &mut [i16], row: &Row, channels: &mut [ChannelState], samples: &[SampleInfo], speed: &mut u8, sample_rate: u32) -> NextAction
+where S: PushSamples {
+    let mut tick = 0;
+
+    for (cstate, chan) in channels.iter_mut().zip(row.channels.iter()).take(4) {
+        if let Some(sample_number) = NonZeroU8::new(chan.sample_number) {
+            cstate.new_sample(sample_number);
+        }
+    
+        if chan.period != 0 {
+            cstate.set_period(chan.period);
+        }
+    
+        let effect_no = ((chan.effect & 0x0f00) >> 8) as u8;
+        let effect_x = ((chan.effect & 0x00f0) >> 4) as u8;
+        let effect_y = (chan.effect & 0x000f) as u8;
+        let effect_xy = (chan.effect & 0x00ff) as u8;
+    
+        match effect_no {
+            0x0 if effect_xy == 0 => {},
+            0xc => { cstate.set_volume(effect_xy) }
+            0xd => {},
+            0xe => {},
+            0xf => { // FIXME: Takes effect on this line or next line?
+            },
+            _ => println!("Unimplemented effect {}: args {}, {}", effect_no, effect_x, effect_y),
+        }
+    }
+    
+    while tick < *speed {
+        mixing_buf.fill(0);
+
+        for (cstate, chan) in channels.iter_mut().zip(row.channels.iter()).filter(|(cs,_)| cs.sample_num().is_some()) {
+            cstate.mix_sample_for_tick(
+                mixing_buf,
+                &samples[(cstate.sample_num().unwrap().get() - 1) as usize],
+                sample_rate
+            );
+        }
+
+        sink.push_samples(&mixing_buf);
+        tick += 1;
+    }
+    
+    for (cstate, chan) in channels.iter_mut().zip(row.channels.iter()).take(4) {
+        let effect_no = ((chan.effect & 0x0f00) >> 8) as u8;
+        let effect_x = ((chan.effect & 0x00f0) >> 4) as u8;
+        let effect_y = (chan.effect & 0x000f) as u8;
+        let effect_xy = (chan.effect & 0x00ff) as u8;
+    
+        match effect_no {
+            0x0 if effect_xy == 0 => {},
+            0xc => {},
+            0xd => {
+                let jump_offset = (effect_x*10 + effect_y) as usize;
+                return NextAction::Jump(jump_offset);
+            }
+            0xe if effect_x == 15 => {
+                panic!("Not implementing 0xEF, sorry");
+            }
+            0xe => {
+                println!("Extended Effect {}: arg {}", effect_x, effect_y);
+            }
+            0xf => {
+                // FIXME: Takes effect on this line or next line?
+                println!("Change speed to {}", effect_xy);
+                *speed = effect_xy & 0x001f;
+            },
+            _ => println!("Unimplemented effect {}: args {}, {}", effect_no, effect_x, effect_y),
+        }
+    }
+
+    NextAction::Continue
+}
