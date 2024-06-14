@@ -69,6 +69,7 @@ fn main() -> eyre::Result<()> {
 
     let mut mixing_buf = vec![0i16; host_samples_per_tick as usize];
     println!("{}, {}, {}, {}", freq, sample_rate_, inc_rate, inc_rate_frac);
+    println!("{}, {}, {}", sample.length, sample.repeat_start, sample.repeat_length);
     for _ in 0..200 {
         play_tick(&mut mixing_buf, &mut state, sample, args.note, sample_rate);
     }

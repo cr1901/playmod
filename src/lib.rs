@@ -126,24 +126,15 @@ pub fn mix_sample_for_tick<P>(
         let (new_frac, carry) = state.sample_frac.overflowing_add(inc_rate_frac);
         state.sample_frac = new_frac;
 
-        if carry {
-            state.sample_offset += inc_rate + 1;
-        } else {
-            // println!("{}, {}", state.sample_offset, inc_rate);
-            state.sample_offset += inc_rate;
-        }
+        state.sample_offset += inc_rate + carry as u16;
 
-        if sample.repeat_length <= 2 {
-            if state.sample_offset >= sample.length * 2 {
-                state.looped_yet = true;
-                state.sample_offset =
-                    sample.repeat_start * 2 + (state.sample_offset - sample.length * 2);
-            }
-        } else {
-            if state.sample_offset >= sample.repeat_start * 2 + sample.repeat_length * 2 {
-                state.sample_offset =
-                    state.sample_offset - (sample.repeat_start * 2 + sample.repeat_length * 2);
-            }
+        if (state.sample_offset >= sample.length * 2) && !state.looped_yet {
+            // println!("At {}, going to {} (repeat start {})", state.sample_offset, sample.repeat_start * 2, sample.repeat_start * 2);
+            state.looped_yet = true;
+            state.sample_offset = sample.repeat_start * 2 + (state.sample_offset - sample.length * 2);
+        } else if state.looped_yet && state.sample_offset >= sample.repeat_start * 2 + sample.repeat_length * 2 {
+            // println!("At {}, going to {} (repeat start {})", state.sample_offset, state.sample_offset - sample.repeat_length * 2, sample.repeat_start * 2);
+            state.sample_offset -= sample.repeat_length * 2;
         }
 
         let curr_sample_val = sample.data[state.sample_offset as usize] as i8 as i16;
