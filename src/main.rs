@@ -121,11 +121,25 @@ fn main() -> eyre::Result<()> {
             }
 
             for (cstate, chan) in channel_states.iter_mut().zip(row.channels.iter()).take(4) {
-                if chan.effect & 0x0f00 == 0x0e00 {
-                    println!("Extended Effect {}: arg {}", chan.effect & 0x00f0 >> 4, chan.effect & 0x000f);
-                } else if chan.effect & 0x0f00 == 0x0f00 {
-                    println!("Change speed to {}", chan.effect & 0x001f);
-                    speed = chan.effect & 0x001f;
+                let effect_no = ((chan.effect & 0x0f00) >> 8) as u8;
+                let effect_x = ((chan.effect & 0x00f0) >> 4) as u8;
+                let effect_y = (chan.effect & 0x000f) as u8;
+                let effect_xy = (chan.effect & 0x00ff) as u8;
+
+                match effect_no {
+                    0x0 if effect_xy == 0 => {},
+                    0xe if effect_x == 15 => {
+                        panic!("Not implementing 0xEF, sorry");
+                    }
+                    0xe => {
+                        println!("Extended Effect {}: arg {}", effect_x, effect_y);
+                    }
+                    0xf => {
+                        // FIXME: Takes effect on this line or next line?
+                        println!("Change speed to {}", effect_xy);
+                        speed = effect_xy & 0x001f;
+                    },
+                    _ => println!("Unimplemented effect {}: args {}, {}", effect_no, effect_x, effect_y),
                 }
             }
         }
